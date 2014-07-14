@@ -34,6 +34,8 @@ cattimer1=0
 catguys=[[1140, height - catrun.get_height() ]]
 healthvalue=194
 
+catspeed = {}
+
 bgOne = pygame.image.load("resources/images/buildingz1.png")
 bgTwo = pygame.image.load("resources/images/buildingz2.png")
 
