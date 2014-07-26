@@ -18,6 +18,8 @@ DIRECTION_RIGHT = 3
 SKATESPEED = 9
 BACKGROUNDSPEED = 2
 
+GAMELENGTH = 60000 # ms
+
 width,height = 1140, 480
 
 class Event:
@@ -103,23 +105,21 @@ class CPUSpinnerController:
         if isinstance(event,QuitEvent):
             self.keepGoing = False
 
-#class Cat(pygame.sprite.Sprite):
-#    runimg   = pygame.image.load("resources/images/cat_run.png")
-#    splatimg = pygame.image.load("resources/images/cat_splat.png")
-#
-#    def __init__(self, position):
-#        self.position = position
-#
-#    catguyimg1 = catrun
-#    catguyimg=catguyimg1
+class Cat(pygame.sprite.Sprite):
+    def __init__(self, evManager, group=None):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
+        self.runimg   = pygame.image.load("resources/images/cat_run.png")
+        self.splatimg = pygame.image.load("resources/images/cat_splat.png")
+        self.wah = pygame.mixer.Sound("resources/audio/catsqueek.wav")
+        self.wah.set_volume(0.65)
+        self.speed = random.randint(6,13)
+        self.position = [width, height - self.runimg.get_height()]
+    def Notify(self, event):
+        if isinstance(event,TickEvent):
+            pass
+            #print "MEOW! position %d " % self.position[0]
 
-class CatSprite(pygame.sprite.Sprite):
-    def __init__(self, sector, group=None):
-        pygame.sprite.Sprite.__init__(self, group)
-        self.image = pygame.Surface( (128,128) )
-        self.image.fill( (0,255,128) )
-
-        self.sector = sector
 
 class Skater(pygame.sprite.Sprite):
     def __init__(self, evManager, group=None):
@@ -134,17 +134,13 @@ class Skater(pygame.sprite.Sprite):
         self.ollieland = pygame.mixer.Sound("resources/audio/ollieland.wav")
         self.ollieland.set_volume(0.75)
         self.position = [10, height - self.rollimg.get_height()]
-        self.SPEED = SKATESPEED
         self.UP = False
         self.DOWN = False
         self.LEFT = False
         self.RIGHT = False
 
     def Notify(self, event):
-        #if self.img == self.ollieimg and (self.position[1] == height - self.rollimg.get_height()) :
-        #    self.ollieland.play()
         if isinstance(event,SkaterMove):
-            print "SKATEMOVEYAAAASSS!"
             if event.direction == DIRECTION_UP:
                 if event.onoff == True:
                     self.UP = True
@@ -169,8 +165,6 @@ class Skater(pygame.sprite.Sprite):
         # SOUNDZ
         if (self.img == self.ollieimg or self.img == self.popimg) and (self.position[1] == height - self.rollimg.get_height()) :
             self.ollieland.play()
-        #if self.UP and not self.LEFT and not self.RIGHT and (self.position[1] == height - self.rollimg.get_height()) and self.position[0] + self.rollimg.get_width() < width :
-        #if self.UP and not self.LEFT and not self.RIGHT and (self.position[1] == height - self.rollimg.get_height()):
         if self.UP and (self.position[1] == height - self.rollimg.get_height()) and not (self.LEFT and self.position[0] <= 0):
             self.olliepop.play()
 
@@ -192,73 +186,27 @@ class Skater(pygame.sprite.Sprite):
                 self.position[0]+= 2
 
         if self.UP and self.img != self.ollieimg:
-        #elif self.RIGHT and self.UP and self.img != self.ollieimg and self.position[0] > 0 and self.position[1] > 0:
             self.img = self.popimg
             self.position[1]-= SKATESPEED
-            if self.position[0] > 0:
+            if not self.LEFT and self.position[0] + self.popimg.get_width() < width:
+                self.position[0]+= 7
+            elif self.RIGHT and self.position[0] > 0:
                 self.position[0]+= 2
 
         if not self.UP and self.img == self.popimg:
             self.img = self.ollieimg
-        #elif self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) and self.position[1] < (height - self.rollimg.get_height()) :
-        #    self.position[0]+=7
-        #    self.position[1]+=7
-        #elif self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) :
-        #    self.position[0]+=7
-        #elif self.LEFT and self.UP and self.img != self.ollieimg and self.position[0] > 0 and self.position[1] > 0:
-        #    self.img = self.popimg
-        #    self.position[0]-=7
-        #    self.position[1]-=7
-        #elif self.LEFT and (self.position[0] > 0) and self.position[1] < (height - self.rollimg.get_height()):
-        #    self.position[0]-=7
-        #    self.position[1]+=7
-        #elif self.LEFT and (self.position[0] > 0) :
-        #    self.position[0]-=7
-        #elif self.UP and not self.LEFT and (self.position[1] > 1) and self.img != self.ollieimg and self.position[0] + self.rollimg.get_width() < width:
-        #    self.img = self.popimg
-        #    self.position[0]+=7
-        #    self.position[1]-=7
-        #elif self.UP and not self.LEFT and (self.position[1] > 1) and self.img != self.ollieimg:
-        #    self.img = self.popimg
-        #    self.position[1]-=7
-        #elif self.position[1] == 0:
-        #    self.img = self.ollieimg
-        #elif self.position[1] > 1 and self.position[1] < (height - self.rollimg.get_height()):
-        #elif self.position[1] < (height - self.rollimg.get_height()) and self.position[0] + self.rollimg.get_width() > width:
-        #    self.img = self.ollieimg
-        #    self.position[1]+=7
-        #elif self.position[1] < (height - self.rollimg.get_height()):
-        #    self.img = self.ollieimg
-        #    self.position[0]+=7
-        #    self.position[1]+=7
-        #elif self.position[0] + self.rollimg.get_width() < width:
-        #    self.position[0]+=3
-        #elif self.position[1] 
-
-        #elif self.UP and (self.position[1] + self.rollimg.get_height() < height) :
-        #    self.position[1]+=7
-        #elif self.DOWN and (self.position[0] > 0 ) and (self.position[1] + self.rollimg.get_height() < height ) and self.img == self.ollieimg: 
-        #    self.position[0]-=7
-        #    self.position[1]+=7
-        #elif self.LEFT and (self.position[0] > 0 ) and self.img != self.ollieimg:
-        #    self.position[0]-=7
-        #elif self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) and (self.img == self.popimg) :
-        #    self.img = self.ollieimg
-        #    self.position[0]+=7
-        #    self.position[1]+=7
-        #elif (self.position[1] < (height - self.rollimg.get_height())) :
-        #    self.img = self.ollieimg
-        #    self.position[0]+=7
-        #    self.position[1]+=7
-
 
 class HealthBar:
     def __init__(self,evManager):
         self.evManager = evManager
         self.evManager.RegisterListener(self)
 
-        self.healthbar = pygame.image.load("resources/images/healthbar.png")
-        self.health    = pygame.image.load("resources/images/health.png")
+        self.display = pygame.image.load("resources/images/healthbar.png")
+        self.current    = pygame.image.load("resources/images/health.png")
+
+    def Notify(self, event):
+        if isinstance(event,TickEvent):
+            print "Healthy!"
 
 
 class PygameView:
@@ -282,7 +230,13 @@ class PygameView:
         text = """Press SPACE BAR to start"""
         textImg = font.render(text, 1, (255,0,0))
 
-        self.skater = Skater(evManager)
+        self.skater = Skater(self.evManager)
+
+        self.CatTimer = 100
+        self.Catz = [ Cat(self.evManager) ]
+
+        self.healthvalue = 194
+        self.healthbar = HealthBar(self.evManager)
 
     def Notify(self, event):
         if isinstance(event,TickEvent):
@@ -291,6 +245,42 @@ class PygameView:
             self.window.blit(self.bgTwo, (self.bgTwo_x, 0))
 
             self.window.blit(self.skater.img, self.skater.position)
+
+            self.CatTimer-=1
+
+            #print "CATTIME %d" % self.CatTimer
+
+            if self.CatTimer<=0:
+                self.Catz.append( Cat(self.evManager) )
+                self.CatTimer=random.randint(0,100)
+            index = 0
+            for cat in self.Catz:
+                if cat.position[0] < -140:
+                    self.Catz.pop(index)
+                cat.position[0] -= cat.speed
+
+                catrect=pygame.Rect(cat.position[0],cat.position[1],(cat.runimg.get_width() - 180), (cat.runimg.get_height() - 180))
+                skaterect=pygame.Rect(self.skater.img.get_rect())
+                skaterect.left=self.skater.position[0] - 80
+                skaterect.top=self.skater.position[1] - 50
+
+                if catrect.colliderect(skaterect):
+                    cat.wah.play()
+                    self.Catz.pop(index)
+                    self.window.blit(cat.splatimg, cat.position)
+                    self.healthvalue -= random.randint(10,40)
+
+                index+=1
+
+            for cat in self.Catz:
+                self.window.blit(cat.runimg, cat.position)
+
+            font = pygame.font.Font(None, 54)
+            survivedtext = font.render(str((GAMELENGTH-pygame.time.get_ticks())/GAMELENGTH)+":"+str((GAMELENGTH-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
+            textRect = survivedtext.get_rect()
+            textRect.topright=[1100,5]
+            self.window.blit(survivedtext, textRect) 
+
 
             pygame.display.flip()
 
