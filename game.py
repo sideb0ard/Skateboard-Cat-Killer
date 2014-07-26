@@ -50,8 +50,6 @@ class EventManager:
         if listener in self.listeners.keys():
             del self.listeners[ listener ]
     def Post(self, event):
-        if isinstance(event, SkaterMove):
-            print "GOT EVENT..."
         for listener in self.listeners.keys():
             listener.Notify( event )
 
@@ -87,7 +85,6 @@ class KeyboardController:
                     elif event.key==K_RIGHT:
                         ev = SkaterMove(DIRECTION_RIGHT, False)
                 if ev:
-                    print "EVENT! KEEEEYYYYZZZZ"
                     self.evManager.Post(ev)
 
 class CPUSpinnerController:
@@ -129,6 +126,10 @@ class Skater(pygame.sprite.Sprite):
         self.popimg   = pygame.image.load("resources/images/skater_pop.png")
         self.ollieimg = pygame.image.load("resources/images/skater_ollie.png")
         self.img = self.rollimg
+        self.olliepop = pygame.mixer.Sound("resources/audio/olliepop.wav")
+        self.olliepop.set_volume(1.95)
+        self.ollieland = pygame.mixer.Sound("resources/audio/ollieland.wav")
+        self.ollieland.set_volume(0.75)
         self.position = [10, height - self.rollimg.get_height()]
         self.SPEED = 9
         self.UP = False
@@ -137,7 +138,6 @@ class Skater(pygame.sprite.Sprite):
         self.RIGHT = False
 
     def Notify(self, event):
-        print "EVENTYAAAASSS!"
         #if self.img == self.ollieimg and (self.position[1] == height - self.rollimg.get_height()) :
         #    self.ollieland.play()
         if isinstance(event,SkaterMove):
@@ -163,34 +163,68 @@ class Skater(pygame.sprite.Sprite):
                 else:
                     self.RIGHT = False
 
-        #if self.img == self.ollieimg and (self.position[1] == height - self.rollimg.get_height()) :
-        #    ollieland.play()
+        # SOUNDZ
+        if self.img == self.ollieimg and (self.position[1] == height - self.rollimg.get_height()) :
+            self.ollieland.play()
+        #if self.UP and not self.LEFT and not self.RIGHT and (self.position[1] == height - self.rollimg.get_height()) and self.position[0] + self.rollimg.get_width() < width :
+        #if self.UP and not self.LEFT and not self.RIGHT and (self.position[1] == height - self.rollimg.get_height()):
+        if self.UP and (self.position[1] == height - self.rollimg.get_height()):
+            self.olliepop.play()
+
+        # IMAGEZ and POSITION
         if (self.position[1] == (height - self.rollimg.get_height())) : # and (self.position[0] + skater.get_width() < width) :
             self.img = self.rollimg
-        if self.UP and (self.position[1] == height - self.rollimg.get_height()) :
-        #    #olliepop.play()
-            print "OLLIE SOUND"
-        if self.UP and (self.position[1] > 1) and self.img != self.ollieimg:
+
+        if self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) and self.position[1] < (height - self.rollimg.get_height()) :
+            self.position[0]+=7
+            self.position[1]+=7
+        if self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) :
+            self.position[0]+=7
+        elif self.LEFT and self.UP and self.img != self.ollieimg and self.position[0] > 0 and self.position[1] > 0:
+            self.img = self.popimg
+            self.position[0]-=7
+            self.position[1]-=7
+        elif self.LEFT and (self.position[0] > 0) and self.position[1] < (height - self.rollimg.get_height()):
+            self.position[0]-=7
+            self.position[1]+=7
+        elif self.LEFT and (self.position[0] > 0) :
+            self.position[0]-=7
+        elif self.UP and not self.LEFT and (self.position[1] > 1) and self.img != self.ollieimg and self.position[0] + self.rollimg.get_width() < width:
             self.img = self.popimg
             self.position[0]+=7
             self.position[1]-=7
-        elif self.RIGHT and (self.position[1] + self.rollimg.get_height() < height) :
+        elif self.UP and not self.LEFT and (self.position[1] > 1) and self.img != self.ollieimg:
+            self.img = self.popimg
+            self.position[1]-=7
+        #elif self.position[1] == 0:
+        #    self.img = self.ollieimg
+        #elif self.position[1] > 1 and self.position[1] < (height - self.rollimg.get_height()):
+        elif self.position[1] < (height - self.rollimg.get_height()) and self.position[0] + self.rollimg.get_width() > width:
+            self.img = self.ollieimg
             self.position[1]+=7
-        elif self.DOWN and (self.position[0] > 0 ) and (self.position[1] + self.rollimg.get_height() < height ) and self.img == self.ollieimg: 
-            self.position[0]-=7
-            self.position[1]+=7
-        elif self.DOWN and (self.position[0] > 0 ):
-            self.position[0]-=7
-        elif self.LEFT and (self.position[0] + self.rollimg.get_width() < width) and (self.img == self.popimg) :
+        elif self.position[1] < (height - self.rollimg.get_height()):
             self.img = self.ollieimg
             self.position[0]+=7
             self.position[1]+=7
-        elif self.LEFT and (self.position[0] + self.rollimg.get_width() < width) :
-            self.position[0]+=7
-        elif (self.position[1] < (height - self.rollimg.get_height())) :
-            self.img = self.ollieimg
-            self.position[0]+=7
-            self.position[1]+=7
+        #elif self.position[0] + self.rollimg.get_width() < width:
+        #    self.position[0]+=3
+        #elif self.position[1] 
+
+        #elif self.UP and (self.position[1] + self.rollimg.get_height() < height) :
+        #    self.position[1]+=7
+        #elif self.DOWN and (self.position[0] > 0 ) and (self.position[1] + self.rollimg.get_height() < height ) and self.img == self.ollieimg: 
+        #    self.position[0]-=7
+        #    self.position[1]+=7
+        #elif self.LEFT and (self.position[0] > 0 ) and self.img != self.ollieimg:
+        #    self.position[0]-=7
+        #elif self.RIGHT and (self.position[0] + self.rollimg.get_width() < width) and (self.img == self.popimg) :
+        #    self.img = self.ollieimg
+        #    self.position[0]+=7
+        #    self.position[1]+=7
+        #elif (self.position[1] < (height - self.rollimg.get_height())) :
+        #    self.img = self.ollieimg
+        #    self.position[0]+=7
+        #    self.position[1]+=7
 
 
 class HealthBar:
