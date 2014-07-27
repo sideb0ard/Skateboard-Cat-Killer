@@ -1,217 +1,360 @@
 #!/usr/bin/env python
-# code based up following the pygame tutorial here -
-# http://www.raywenderlich.com/24252/beginning-game-programming-for-teens-with-python
+# coding=utf-8
 
 import pygame
 from pygame.locals import *
 import math
 import random
+import time
 
-pygame.init()
+def Debug( msg ):
+    print msg
+
+DIRECTION_UP    = 0
+DIRECTION_DOWN  = 1
+DIRECTION_LEFT  = 2
+DIRECTION_RIGHT = 3
+
+WIN  = 1
+LOSE = 0
+
+SKATESPEED = 9
+BACKGROUNDSPEED = 2
+
+GAMELENGTH = 60000 # ms
+
 width,height = 1140, 480
-screen = pygame.display.set_mode((width,height))
 
-gamelength = 60000 # ms
-# gamelength = 5000 # ms
+class Event:
+    def __init__(self):
+        self.name = "Generic Event"
 
-keys = [False, False, False, False]
+class TickEvent(Event):
+    def __init__(self):
+        self.name = "CPU Tick Event"
 
-pygame.mixer.init()
+class QuitEvent(Event):
+    def __init__(self):
+        self.name = "Program Quit Event"
 
-skater = pygame.image.load("resources/images/skater_roll.png")
-skaterpop = pygame.image.load("resources/images/skater_pop.png")
-skaterollie = pygame.image.load("resources/images/skater_ollie.png")
-skaterimg = skater
-skaterpos = [10, height - skater.get_height()]
+class GameStartedEvent(Event):
+    def __init__(self, game):
+        self.name = "Game Started Event"
+        self.game = game
 
-catrun = pygame.image.load("resources/images/cat_run.png")
-catsplat = pygame.image.load("resources/images/cat_splat.png")
-catguyimg1 = catrun
-catguyimg=catguyimg1
+class SkaterMoveEvent(Event):
+    def __init__(self, direction, onoff):
+        self.name = "Skater Move Request"
+        self.direction = direction
+        self.onoff = onoff
 
-cattimer=100
-cattimer1=0
-catguys=[[1140, height - catrun.get_height() ]]
-healthvalue=194
+class HealthChangeEvent(Event):
+    def __init__(self):
+        self.name = "Health Change Request"
+        self.value = random.randint(10,40)
 
-catspeed = {}
+class GameOverEvent(Event):
+    def __init__(self, result):
+        self.name = "Game Over Event"
+        self.result = result
 
-bgOne = pygame.image.load("resources/images/buildingz1.png")
-bgTwo = pygame.image.load("resources/images/buildingz2.png")
+class EventManager:
+    def __init__(self):
+        from weakref import WeakKeyDictionary
+        self.listeners = WeakKeyDictionary()
+    def RegisterListener(self, listener):
+        self.listeners[listener] = 1
+    def UnregisterListener(self, listener):
+        if listener in self.listeners.keys():
+            del self.listeners[ listener ]
+    def Post(self, event):
+        for listener in self.listeners.keys():
+            listener.Notify( event )
 
-bgOne_x = 0
-bgTwo_x = bgOne.get_width()
+class KeyboardController:
+    def __init__(self, evManager):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
 
-healthbar = pygame.image.load("resources/images/healthbar.png")
-health = pygame.image.load("resources/images/health.png")
+    def Notify(self,event):
+        if isinstance(event,TickEvent):
+            for event in pygame.event.get():
+                ev = None
+                if event.type==pygame.QUIT:
+                    ev = QuitEvent()
+                if event.type == pygame.KEYDOWN:
+                    if event.key==K_ESCAPE:
+                        ev = QuitEvent()
+                    elif event.key==K_UP:
+                        ev = SkaterMoveEvent(DIRECTION_UP, True)
+                    elif event.key==K_LEFT:
+                        ev = SkaterMoveEvent(DIRECTION_LEFT, True)
+                    elif event.key==K_DOWN:
+                        ev = SkaterMoveEvent(DIRECTION_DOWN, True)
+                    elif event.key==K_RIGHT:
+                        ev = SkaterMoveEvent(DIRECTION_RIGHT, True)
+                if event.type == pygame.KEYUP:
+                    if event.key==K_UP:
+                        ev = SkaterMoveEvent(DIRECTION_UP, False)
+                    elif event.key==K_LEFT:
+                        ev = SkaterMoveEvent(DIRECTION_LEFT, False)
+                    elif event.key==K_DOWN:
+                        ev = SkaterMoveEvent(DIRECTION_DOWN, False)
+                    elif event.key==K_RIGHT:
+                        ev = SkaterMoveEvent(DIRECTION_RIGHT, False)
+                if ev:
+                    self.evManager.Post(ev)
 
-gameover = pygame.image.load("resources/images/gameover.png")
-youwin = pygame.image.load("resources/images/youwin.png")
+class CPUSpinnerController:
+    def __init__(self,evManager):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
+        self.keepGoing = True
+    def Run(self):
+        while self.keepGoing:
+            event = TickEvent()
+            self.evManager.Post(event)
+    def Notify(self,event):
+        if isinstance(event,QuitEvent):
+            self.keepGoing = False
 
-# Load audio
-olliepop = pygame.mixer.Sound("resources/audio/olliepop.wav")
-olliepop.set_volume(0.75)
-ollieland = pygame.mixer.Sound("resources/audio/ollieland.wav")
-ollieland.set_volume(0.75)
+class Cat(pygame.sprite.Sprite):
+    def __init__(self, evManager, group=None):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
+        self.runimg   = pygame.image.load("resources/images/cat_run.png")
+        self.splatimg = pygame.image.load("resources/images/cat_splat.png")
+        self.wah = pygame.mixer.Sound("resources/audio/catsqueek.wav")
+        self.wah.set_volume(0.65)
+        self.speed = random.randint(6,13)
+        self.position = [width, height - self.runimg.get_height()]
+    def Notify(self, event):
+        if isinstance(event,TickEvent):
+            pass
+            #print "MEOW! position %d " % self.position[0]
 
-catwah = pygame.mixer.Sound("resources/audio/catsqueek.wav")
-catwah.set_volume(0.65)
 
-#pygame.mixer.music.load('resources/audio/bass.wav')
-pygame.mixer.music.load('resources/audio/hoodlike.wav')
-pygame.mixer.music.play(-1, 0.0)
-pygame.mixer.music.set_volume(0.25)
+class Skater(pygame.sprite.Sprite):
+    def __init__(self, evManager, group=None):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
+        self.rollimg  = pygame.image.load("resources/images/skater_roll.png")
+        self.popimg   = pygame.image.load("resources/images/skater_pop.png")
+        self.ollieimg = pygame.image.load("resources/images/skater_ollie.png")
+        self.img = self.rollimg
+        self.olliepop = pygame.mixer.Sound("resources/audio/olliepop.wav")
+        self.olliepop.set_volume(10.95)
+        self.ollieland = pygame.mixer.Sound("resources/audio/ollieland.wav")
+        self.ollieland.set_volume(0.75)
+        self.position = [10, height - self.rollimg.get_height()]
+        self.UP = False
+        self.DOWN = False
+        self.LEFT = False
+        self.RIGHT = False
 
-running = 1
-exitcode = 0
-while running:
-    # print pygame.font.get_fonts()
-    cattimer-=1
-    screen.fill(0)
+    def Notify(self, event):
+        if isinstance(event,SkaterMoveEvent):
+            if event.direction == DIRECTION_UP:
+                if event.onoff == True:
+                    self.UP = True
+                else:
+                    self.UP = False
+            elif event.direction == DIRECTION_DOWN:
+                if event.onoff == True:
+                    self.DOWN = True
+                else:
+                    self.DOWN = False
+            elif event.direction == DIRECTION_LEFT:
+                if event.onoff == True:
+                    self.LEFT = True
+                else:
+                    self.LEFT = False
+            elif event.direction == DIRECTION_RIGHT:
+                if event.onoff == True:
+                    self.RIGHT = True
+                else:
+                    self.RIGHT = False
 
-    screen.blit(bgOne, (bgOne_x, 0))
-    screen.blit(bgTwo, (bgTwo_x, 0))
+        # SOUNDZ
+        if pygame.time.get_ticks()<=GAMELENGTH:
+            if (self.img == self.ollieimg or self.img == self.popimg) and (self.position[1] == height - self.rollimg.get_height()) :
+                self.ollieland.play()
+            if self.UP and (self.position[1] == height - self.rollimg.get_height()) and not (self.LEFT and self.position[0] <= 0):
+                self.olliepop.play()
 
-    screen.blit(skaterimg, skaterpos)
-    if cattimer==0:
-        catguys.append([980, height - catrun.get_height()])
-        cattimer=random.randint(0,100)
-    index=0
-    for catguy in catguys:
-        if catguy[0]< -140:
-            catguys.pop(index)
-        # catguy speed ##
-        #catguy[0]-=9
-        catguy[0]-=10
-        catrect=pygame.Rect(0, 0, (catguyimg.get_width() - 180), (catguyimg.get_height() - 180))
-        catrect.top=catguy[1]
-        catrect.left=catguy[0]
-        if catrect.left<0:
-            catguys.pop(index)
-        index1=0
-        skaterect=pygame.Rect(skater.get_rect())
-        skaterect.left=skaterpos[0] - 80
-        skaterect.top=skaterpos[1] - 50
-        if catrect.colliderect(skaterect):
-           catwah.play()
-           catguys.pop(index)
-           screen.blit(catsplat, catguy)
-           healthvalue -= random.randint(10,40)
-           index1+=1
-        index+=1
-    for catguy in catguys:
-        screen.blit(catguyimg, catguy)
+        # IMAGEZ and POSITION
 
-    font = pygame.font.Font(None, 54)
-    survivedtext = font.render(str((gamelength-pygame.time.get_ticks())/gamelength)+":"+str((gamelength-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
-    textRect = survivedtext.get_rect()
-    textRect.topright=[1100,5]
-    screen.blit(survivedtext, textRect) 
-    # 6.5 - Draw health bar
-    screen.blit(healthbar, (5,5))
-    for health1 in range(healthvalue):
-        screen.blit(health, (health1+8,8))
+        if (self.position[1] == (height - self.rollimg.get_height())) : # default position
+            self.img = self.rollimg
+        elif (self.position[1] <= 0):
+            self.img = self.ollieimg # hit top, time for gravity to kick in
 
-    pygame.display.flip()
+        if self.LEFT and (self.position[0] > 0) :
+            self.position[0]-= SKATESPEED
+        elif self.RIGHT and (self.position[0] + self.rollimg.get_width() < width):
+            self.position[0]+= SKATESPEED
 
-    bgOne_x -= 1
-    bgTwo_x -= 1
+        if self.img == self.ollieimg: # Once your in ollie position, gravity takes hold and brings ye down
+            self.position[1]+= SKATESPEED
+            if self.position[0] > 0:
+                self.position[0]+= 2
 
-    if bgOne_x <= -1 * bgOne.get_width():
-        bgOne_x = bgTwo_x + bgTwo.get_width()
-    if bgTwo_x <= -1 * bgTwo.get_width():
-        bgTwo_x = bgOne_x + bgOne.get_width()
+        if self.UP and self.img != self.ollieimg:
+            self.img = self.popimg
+            self.position[1]-= SKATESPEED
+            if not self.LEFT and self.position[0] + self.popimg.get_width() < width:
+                self.position[0]+= 7
+            elif self.RIGHT and self.position[0] > 0:
+                self.position[0]+= 2
 
-    for event in pygame.event.get():
-        if event.type==pygame.QUIT:
-            pygame.quit()
-            exit(0)
-        if event.type == pygame.KEYDOWN:
-            if event.key==K_UP:
-                keys[0]=True
-            elif event.key==K_LEFT:
-                keys[1]=True
-            elif event.key==K_DOWN:
-                keys[2]=True
-            elif event.key==K_RIGHT:
-                keys[3]=True
-        if event.type == pygame.KEYUP:
-            if event.key==K_UP:
-                keys[0]=False
-            elif event.key==K_LEFT:
-                keys[1]=False
-            elif event.key==K_DOWN:
-                keys[2]=False
-            elif event.key==K_RIGHT:
-                keys[3]=False
+        if not self.UP and self.img == self.popimg:
+            self.img = self.ollieimg
 
-    if skaterimg == skaterollie and (skaterpos[1] == height - skater.get_height()) :
-        ollieland.play()
-    if (skaterpos[1] == (height - skater.get_height())) : # and (skaterpos[0] + skater.get_width() < width) :
-        skaterimg = skater
-    if keys[0] and (skaterpos[1] == height - skater.get_height()) :
-        olliepop.play()
-    if keys[0] and (skaterpos[1] > 1) and skaterimg != skaterollie:
-        skaterimg = skaterpop
-        skaterpos[0]+=7
-        skaterpos[1]-=7
-    elif keys[2] and (skaterpos[1] + skater.get_height() < height) :
-        skaterpos[1]+=7
-    elif keys[1] and (skaterpos[0] > 0 ) and (skaterpos[1] + skater.get_height() < height ) and skaterimg == skaterollie: 
-        skaterpos[0]-=7
-        skaterpos[1]+=7
-    elif keys[1] and (skaterpos[0] > 0 ):
-        skaterpos[0]-=7
-    elif keys[3] and (skaterpos[0] + skater.get_width() < width) and (skaterimg == skaterpop) :
-        skaterimg = skaterollie
-        skaterpos[0]+=7
-        skaterpos[1]+=7
-    elif keys[3] and (skaterpos[0] + skater.get_width() < width) :
-        skaterpos[0]+=7
-    elif (skaterpos[1] < (height - skater.get_height())) :
-        skaterimg = skaterollie
-        skaterpos[0]+=7
-        skaterpos[1]+=7
+class HealthBar:
+    def __init__(self,evManager):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
 
-    if pygame.time.get_ticks()>=gamelength:
-        running=0
-        exitcode=1
-    if healthvalue<=0:
-        running=0
-        exitcode=0
+        self.display = pygame.image.load("resources/images/healthbar.png")
+        self.current    = pygame.image.load("resources/images/health.png")
 
-# Win/lose display
-if exitcode==0:
-    # LOSER
-    pygame.mixer.music.load('resources/audio/hell.wav')
-    pygame.mixer.music.play(-1, 0.0)
-    pygame.font.init()
-    font = pygame.font.Font(None, 47)
-    #text = font.render("Accuracy: "+str(accuracy)+"%", True, (255,0,0))
-    text = font.render("YOU SUCK, DUDE!! __ALL THE CATS ARE DEAD!!!! :(", True, (255,0,0))
-    textRect = text.get_rect()
-    textRect.centerx = screen.get_rect().centerx
-    #textRect.centery = screen.get_rect().centery+24
-    textRect.centery = 50
-    #screen.blit(gameover, (0,0))
-    screen.blit(text, textRect)
-else:
-    # WINNNER
-    pygame.mixer.music.load('resources/audio/heaven.wav')
-    pygame.mixer.music.play(-1, 0.0)
-    pygame.font.init()
-    font = pygame.font.Font(None, 47)
-    text = font.render("DAMN, DUDE, YOU RULE, LOTS OF CATS STILL ALIVE!!", True, (255,0,255))
-    #text = font.render("Accuracy: "+str(accuracy)+"%", True, (0,255,0))
-    textRect = text.get_rect()
-    textRect.centerx = screen.get_rect().centerx
-    #textRect.centery = screen.get_rect().centery+24
-    textRect.centery = 50
-    #screen.blit(youwin, (0,0))
-    screen.blit(text, textRect)
-while 1:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit(0)
-    pygame.display.flip()
+        self.healthvalue = 194
+
+    def Notify(self, event):
+        if isinstance(event,HealthChangeEvent):
+            self.healthvalue -= event.value
+            print "Healthy! %d" % self.healthvalue
+
+            if self.healthvalue<=0:
+                event = GameOverEvent(LOSE)
+                self.evManager.Post(event)
+
+class PygameView:
+    def __init__(self,evManager):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
+
+        pygame.init()
+        self.window = pygame.display.set_mode( (width, height) )
+        self.background = pygame.Surface(self.window.get_size())
+        self.background.fill((0,0,0))
+
+        self.bgOne = pygame.image.load("resources/images/buildingz1.png")
+        self.bgTwo = pygame.image.load("resources/images/buildingz2.png")
+
+        self.bgOne_x = 0
+        self.bgTwo_x = self.bgOne.get_width()
+
+        pygame.display.set_caption('SKATEB0ARD CAT KILLER')
+        font = pygame.font.Font(None,30)
+        text = """Press SPACE BAR to start"""
+        textImg = font.render(text, 1, (255,0,0))
+
+        self.skater = Skater(self.evManager)
+
+        self.CatTimer = 100
+        self.Catz = [ Cat(self.evManager) ]
+
+        self.healthbar = HealthBar(self.evManager)
+
+        #pygame.mixer.music.load('resources/audio/hoodlike.wav')
+        pygame.mixer.music.load('resources/audio/longhood.wav')
+        pygame.mixer.music.play(-1, 0.0)
+        pygame.mixer.music.set_volume(0.25)
+
+        self.GAMEON = True
+
+    def Notify(self, event):
+        if isinstance(event,GameOverEvent):
+            self.GAMEON = False
+            if event.result == WIN:
+                pygame.mixer.music.load('resources/audio/heaven.wav')
+                pygame.mixer.music.play(-1, 0.0)
+                pygame.font.init()
+                font = pygame.font.Font(None, 47)
+                text = font.render("DAMN, DUDE, YOU RULE, LOTS OF CATS STILL ALIVE!!", True, (255,0,255))
+                textRect = text.get_rect()
+                textRect.centerx = self.window.get_rect().centerx
+                textRect.centery = 50
+                self.window.blit(text, textRect)
+            else:
+                pygame.mixer.music.load('resources/audio/hell.wav')
+                pygame.mixer.music.play(-1, 0.0)
+                pygame.font.init()
+                font = pygame.font.Font(None, 47)
+                text = font.render("YOU SUCK, DUDE!! __ALL THE CATS ARE DEAD!!!! :(", True, (255,0,0))
+                textRect = text.get_rect()
+                textRect.centerx = self.window.get_rect().centerx
+                textRect.centery = 50
+                self.window.blit(text, textRect)
+            pygame.display.flip()
+
+        if isinstance(event,TickEvent) and self.GAMEON == True:
+            self.background.fill((0,0,0))
+            self.window.blit(self.bgOne, (self.bgOne_x, 0))
+            self.window.blit(self.bgTwo, (self.bgTwo_x, 0))
+
+            self.window.blit(self.skater.img, self.skater.position)
+
+            self.CatTimer-=1
+
+            if self.CatTimer<=0:
+                self.Catz.append( Cat(self.evManager) )
+                self.CatTimer=random.randint(1,100)
+            index = 0
+            for cat in self.Catz:
+                if cat.position[0] < -140:
+                    self.Catz.pop(index)
+                cat.position[0] -= cat.speed
+
+                catrect=pygame.Rect(cat.position[0],cat.position[1],(cat.runimg.get_width() - 180), (cat.runimg.get_height() - 180))
+                skaterect=pygame.Rect(self.skater.img.get_rect())
+                skaterect.left=self.skater.position[0] - 80
+                skaterect.top=self.skater.position[1] - 50
+
+                if catrect.colliderect(skaterect):
+                    cat.wah.play()
+                    self.Catz.pop(index)
+                    self.window.blit(cat.splatimg, cat.position)
+                    event = HealthChangeEvent()
+                    self.evManager.Post(event)
+
+                index+=1
+
+            for cat in self.Catz:
+                self.window.blit(cat.runimg, cat.position)
+
+            font = pygame.font.Font(None, 54)
+            timertext = font.render(str((GAMELENGTH-pygame.time.get_ticks())/GAMELENGTH)+":"+str((GAMELENGTH-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
+            textRect = timertext.get_rect()
+            textRect.topright=[1100,5]
+            self.window.blit(timertext, textRect) 
+
+            self.window.blit(self.healthbar.display, (10,10))
+            for val in range(self.healthbar.healthvalue):
+                self.window.blit(self.healthbar.current, (val+13,13))
+
+
+            self.bgOne_x -= BACKGROUNDSPEED
+            self.bgTwo_x -= BACKGROUNDSPEED
+
+            if self.bgOne_x <= -1 * self.bgOne.get_width():
+                self.bgOne_x = self.bgTwo_x + self.bgTwo.get_width()
+            if self.bgTwo_x <= -1 * self.bgTwo.get_width():
+                self.bgTwo_x = self.bgOne_x + self.bgOne.get_width()
+
+            pygame.display.flip()
+
+        if pygame.time.get_ticks()>=GAMELENGTH and self.GAMEON == True:
+            event = GameOverEvent(WIN)
+            self.evManager.Post(event)
+
+def main():
+    evManager = EventManager()
+    keybd = KeyboardController(evManager)
+    spinner = CPUSpinnerController(evManager)
+    pygameView = PygameView(evManager)
+    spinner.Run()
+
+if __name__=="__main__":
+    main()
