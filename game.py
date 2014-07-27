@@ -124,10 +124,13 @@ class Cat(pygame.sprite.Sprite):
         self.evManager.RegisterListener(self)
         self.runimg   = pygame.image.load("resources/images/cat_run.png")
         self.splatimg = pygame.image.load("resources/images/cat_splat.png")
+        self.img = self.runimg
         self.wah = pygame.mixer.Sound("resources/audio/catsqueek.wav")
         self.wah.set_volume(0.65)
-        self.speed = random.randint(6,13)
+        self.speed = random.randint(7,15)
         self.position = [width, height - self.runimg.get_height()]
+        self.splatcounter = 7
+
     def Notify(self, event):
         if isinstance(event,TickEvent):
             pass
@@ -146,6 +149,7 @@ class Skater(pygame.sprite.Sprite):
         self.olliepop.set_volume(10.95)
         self.ollieland = pygame.mixer.Sound("resources/audio/ollieland.wav")
         self.ollieland.set_volume(0.75)
+        self.SOUNDON = True
         self.position = [10, height - self.rollimg.get_height()]
         self.UP = False
         self.DOWN = False
@@ -176,14 +180,13 @@ class Skater(pygame.sprite.Sprite):
                     self.RIGHT = False
 
         # SOUNDZ
-        if pygame.time.get_ticks()<=GAMELENGTH:
+        if self.SOUNDON == True:
             if (self.img == self.ollieimg or self.img == self.popimg) and (self.position[1] == height - self.rollimg.get_height()) :
                 self.ollieland.play()
             if self.UP and (self.position[1] == height - self.rollimg.get_height()) and not (self.LEFT and self.position[0] <= 0):
                 self.olliepop.play()
 
         # IMAGEZ and POSITION
-
         if (self.position[1] == (height - self.rollimg.get_height())) : # default position
             self.img = self.rollimg
         elif (self.position[1] <= 0):
@@ -209,6 +212,11 @@ class Skater(pygame.sprite.Sprite):
 
         if not self.UP and self.img == self.popimg:
             self.img = self.ollieimg
+
+class CountDownDisplay:
+    def __init__(self,evManager):
+        self.evManager = evManager
+        self.evManager.RegisterListener(self)
 
 class HealthBar:
     def __init__(self,evManager):
@@ -267,22 +275,25 @@ class PygameView:
     def Notify(self, event):
         if isinstance(event,GameOverEvent):
             self.GAMEON = False
+            self.skater.SOUNDON = False
             if event.result == WIN:
                 pygame.mixer.music.load('resources/audio/heaven.wav')
                 pygame.mixer.music.play(-1, 0.0)
                 pygame.font.init()
                 font = pygame.font.Font(None, 47)
-                text = font.render("DAMN, DUDE, YOU RULE, LOTS OF CATS STILL ALIVE!!", True, (255,0,255))
+                text = font.render("DAMN, DUDE, YOU RULE, PLENTY OF RAMPAGIN CATS STILL ALIVE!!", True, (255,0,255))
                 textRect = text.get_rect()
                 textRect.centerx = self.window.get_rect().centerx
                 textRect.centery = 50
                 self.window.blit(text, textRect)
+                #print pygame.time.get_ticks()
+                #self.window.blit(text, textRect)
             else:
                 pygame.mixer.music.load('resources/audio/hell.wav')
                 pygame.mixer.music.play(-1, 0.0)
                 pygame.font.init()
                 font = pygame.font.Font(None, 47)
-                text = font.render("YOU SUCK, DUDE!! __ALL THE CATS ARE DEAD!!!! :(", True, (255,0,0))
+                text = font.render("YOU SUCK, DUDE!! __ SO MANY DEAD CATS !!!! :(", True, (255,0,0))
                 textRect = text.get_rect()
                 textRect.centerx = self.window.get_rect().centerx
                 textRect.centery = 50
@@ -300,29 +311,37 @@ class PygameView:
 
             if self.CatTimer<=0:
                 self.Catz.append( Cat(self.evManager) )
-                self.CatTimer=random.randint(1,100)
+                self.CatTimer=random.randint(1,80)
             index = 0
             for cat in self.Catz:
-                if cat.position[0] < -140:
-                    self.Catz.pop(index)
-                cat.position[0] -= cat.speed
 
-                catrect=pygame.Rect(cat.position[0],cat.position[1],(cat.runimg.get_width() - 180), (cat.runimg.get_height() - 180))
-                skaterect=pygame.Rect(self.skater.img.get_rect())
-                skaterect.left=self.skater.position[0] - 80
-                skaterect.top=self.skater.position[1] - 50
-
-                if catrect.colliderect(skaterect):
-                    cat.wah.play()
+                if cat.position[0] < -140 or cat.splatcounter <= 0:
                     self.Catz.pop(index)
-                    self.window.blit(cat.splatimg, cat.position)
-                    event = HealthChangeEvent()
-                    self.evManager.Post(event)
+
+                if cat.img == cat.splatimg:
+                    cat.splatcounter -= 1
+                    cat.position[1] = height - cat.img.get_height()
+                else:
+                    cat.position[0] -= cat.speed
+
+                if cat.img == cat.runimg:
+                    catrect=pygame.Rect(cat.position[0],cat.position[1],(cat.runimg.get_width() - 180), (cat.runimg.get_height() - 180))
+                    skaterect=pygame.Rect(self.skater.img.get_rect())
+                    skaterect.left=self.skater.position[0] - 80
+                    skaterect.top=self.skater.position[1] - 50
+
+                    if catrect.colliderect(skaterect):
+                        cat.wah.play()
+                        cat.img = cat.splatimg
+                        #self.Catz.pop(index)
+                        #self.window.blit(cat.splatimg, cat.position)
+                        event = HealthChangeEvent()
+                        self.evManager.Post(event)
 
                 index+=1
 
             for cat in self.Catz:
-                self.window.blit(cat.runimg, cat.position)
+                self.window.blit(cat.img, cat.position)
 
             font = pygame.font.Font(None, 54)
             timertext = font.render(str((GAMELENGTH-pygame.time.get_ticks())/GAMELENGTH)+":"+str((GAMELENGTH-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
