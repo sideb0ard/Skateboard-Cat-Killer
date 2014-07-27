@@ -15,6 +15,9 @@ DIRECTION_DOWN  = 1
 DIRECTION_LEFT  = 2
 DIRECTION_RIGHT = 3
 
+WIN  = 1
+LOSE = 0
+
 SKATESPEED = 9
 BACKGROUNDSPEED = 2
 
@@ -39,11 +42,21 @@ class GameStartedEvent(Event):
         self.name = "Game Started Event"
         self.game = game
 
-class SkaterMove(Event):
+class SkaterMoveEvent(Event):
     def __init__(self, direction, onoff):
         self.name = "Skater Move Request"
         self.direction = direction
         self.onoff = onoff
+
+class HealthChangeEvent(Event):
+    def __init__(self):
+        self.name = "Health Change Request"
+        self.value = random.randint(10,40)
+
+class GameOverEvent(Event):
+    def __init__(self, result):
+        self.name = "Game Over Event"
+        self.result = result
 
 class EventManager:
     def __init__(self):
@@ -73,22 +86,22 @@ class KeyboardController:
                     if event.key==K_ESCAPE:
                         ev = QuitEvent()
                     elif event.key==K_UP:
-                        ev = SkaterMove(DIRECTION_UP, True)
+                        ev = SkaterMoveEvent(DIRECTION_UP, True)
                     elif event.key==K_LEFT:
-                        ev = SkaterMove(DIRECTION_LEFT, True)
+                        ev = SkaterMoveEvent(DIRECTION_LEFT, True)
                     elif event.key==K_DOWN:
-                        ev = SkaterMove(DIRECTION_DOWN, True)
+                        ev = SkaterMoveEvent(DIRECTION_DOWN, True)
                     elif event.key==K_RIGHT:
-                        ev = SkaterMove(DIRECTION_RIGHT, True)
+                        ev = SkaterMoveEvent(DIRECTION_RIGHT, True)
                 if event.type == pygame.KEYUP:
                     if event.key==K_UP:
-                        ev = SkaterMove(DIRECTION_UP, False)
+                        ev = SkaterMoveEvent(DIRECTION_UP, False)
                     elif event.key==K_LEFT:
-                        ev = SkaterMove(DIRECTION_LEFT, False)
+                        ev = SkaterMoveEvent(DIRECTION_LEFT, False)
                     elif event.key==K_DOWN:
-                        ev = SkaterMove(DIRECTION_DOWN, False)
+                        ev = SkaterMoveEvent(DIRECTION_DOWN, False)
                     elif event.key==K_RIGHT:
-                        ev = SkaterMove(DIRECTION_RIGHT, False)
+                        ev = SkaterMoveEvent(DIRECTION_RIGHT, False)
                 if ev:
                     self.evManager.Post(ev)
 
@@ -140,7 +153,7 @@ class Skater(pygame.sprite.Sprite):
         self.RIGHT = False
 
     def Notify(self, event):
-        if isinstance(event,SkaterMove):
+        if isinstance(event,SkaterMoveEvent):
             if event.direction == DIRECTION_UP:
                 if event.onoff == True:
                     self.UP = True
@@ -163,10 +176,11 @@ class Skater(pygame.sprite.Sprite):
                     self.RIGHT = False
 
         # SOUNDZ
-        if (self.img == self.ollieimg or self.img == self.popimg) and (self.position[1] == height - self.rollimg.get_height()) :
-            self.ollieland.play()
-        if self.UP and (self.position[1] == height - self.rollimg.get_height()) and not (self.LEFT and self.position[0] <= 0):
-            self.olliepop.play()
+        if pygame.time.get_ticks()<=GAMELENGTH:
+            if (self.img == self.ollieimg or self.img == self.popimg) and (self.position[1] == height - self.rollimg.get_height()) :
+                self.ollieland.play()
+            if self.UP and (self.position[1] == height - self.rollimg.get_height()) and not (self.LEFT and self.position[0] <= 0):
+                self.olliepop.play()
 
         # IMAGEZ and POSITION
 
@@ -204,10 +218,16 @@ class HealthBar:
         self.display = pygame.image.load("resources/images/healthbar.png")
         self.current    = pygame.image.load("resources/images/health.png")
 
-    def Notify(self, event):
-        if isinstance(event,TickEvent):
-            print "Healthy!"
+        self.healthvalue = 194
 
+    def Notify(self, event):
+        if isinstance(event,HealthChangeEvent):
+            self.healthvalue -= event.value
+            print "Healthy! %d" % self.healthvalue
+
+            if self.healthvalue<=0:
+                event = GameOverEvent(LOSE)
+                self.evManager.Post(event)
 
 class PygameView:
     def __init__(self,evManager):
@@ -235,11 +255,40 @@ class PygameView:
         self.CatTimer = 100
         self.Catz = [ Cat(self.evManager) ]
 
-        self.healthvalue = 194
         self.healthbar = HealthBar(self.evManager)
 
+        #pygame.mixer.music.load('resources/audio/hoodlike.wav')
+        pygame.mixer.music.load('resources/audio/longhood.wav')
+        pygame.mixer.music.play(-1, 0.0)
+        pygame.mixer.music.set_volume(0.25)
+
+        self.GAMEON = True
+
     def Notify(self, event):
-        if isinstance(event,TickEvent):
+        if isinstance(event,GameOverEvent):
+            self.GAMEON = False
+            if event.result == WIN:
+                pygame.mixer.music.load('resources/audio/heaven.wav')
+                pygame.mixer.music.play(-1, 0.0)
+                pygame.font.init()
+                font = pygame.font.Font(None, 47)
+                text = font.render("DAMN, DUDE, YOU RULE, LOTS OF CATS STILL ALIVE!!", True, (255,0,255))
+                textRect = text.get_rect()
+                textRect.centerx = self.window.get_rect().centerx
+                textRect.centery = 50
+                self.window.blit(text, textRect)
+            else:
+                pygame.mixer.music.load('resources/audio/hell.wav')
+                pygame.mixer.music.play(-1, 0.0)
+                pygame.font.init()
+                font = pygame.font.Font(None, 47)
+                text = font.render("YOU SUCK, DUDE!! __ALL THE CATS ARE DEAD!!!! :(", True, (255,0,0))
+                textRect = text.get_rect()
+                textRect.centerx = self.window.get_rect().centerx
+                textRect.centery = 50
+                self.window.blit(text, textRect)
+
+        if isinstance(event,TickEvent) and self.GAMEON == True:
             self.background.fill((0,0,0))
             self.window.blit(self.bgOne, (self.bgOne_x, 0))
             self.window.blit(self.bgTwo, (self.bgTwo_x, 0))
@@ -248,11 +297,9 @@ class PygameView:
 
             self.CatTimer-=1
 
-            #print "CATTIME %d" % self.CatTimer
-
             if self.CatTimer<=0:
                 self.Catz.append( Cat(self.evManager) )
-                self.CatTimer=random.randint(0,100)
+                self.CatTimer=random.randint(1,100)
             index = 0
             for cat in self.Catz:
                 if cat.position[0] < -140:
@@ -268,7 +315,8 @@ class PygameView:
                     cat.wah.play()
                     self.Catz.pop(index)
                     self.window.blit(cat.splatimg, cat.position)
-                    self.healthvalue -= random.randint(10,40)
+                    event = HealthChangeEvent()
+                    self.evManager.Post(event)
 
                 index+=1
 
@@ -276,13 +324,15 @@ class PygameView:
                 self.window.blit(cat.runimg, cat.position)
 
             font = pygame.font.Font(None, 54)
-            survivedtext = font.render(str((GAMELENGTH-pygame.time.get_ticks())/GAMELENGTH)+":"+str((GAMELENGTH-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
-            textRect = survivedtext.get_rect()
+            timertext = font.render(str((GAMELENGTH-pygame.time.get_ticks())/GAMELENGTH)+":"+str((GAMELENGTH-pygame.time.get_ticks())/1000%60).zfill(2), True, (255,255,255))
+            textRect = timertext.get_rect()
             textRect.topright=[1100,5]
-            self.window.blit(survivedtext, textRect) 
+            self.window.blit(timertext, textRect) 
 
+            self.window.blit(self.healthbar.display, (10,10))
+            for val in range(self.healthbar.healthvalue):
+                self.window.blit(self.healthbar.current, (val+13,13))
 
-            pygame.display.flip()
 
             self.bgOne_x -= BACKGROUNDSPEED
             self.bgTwo_x -= BACKGROUNDSPEED
@@ -291,6 +341,12 @@ class PygameView:
                 self.bgOne_x = self.bgTwo_x + self.bgTwo.get_width()
             if self.bgTwo_x <= -1 * self.bgTwo.get_width():
                 self.bgTwo_x = self.bgOne_x + self.bgOne.get_width()
+
+            pygame.display.flip()
+
+        if pygame.time.get_ticks()>=GAMELENGTH and self.GAMEON == True:
+            event = GameOverEvent(WIN)
+            self.evManager.Post(event)
 
 def main():
     evManager = EventManager()
