@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 # coding=utf-8
+# Music by Delroy Edwards - Slowed Down Funk - http://www.sloweddownfunk.net/
+# my first version based on this kid's tutorial - http://www.raywenderlich.com/24252/beginning-game-programming-for-teens-with-python
+# Then i made it more object oriented after reading this tutorial - http://ezide.com/games/writing-games.html
+# Probably still remants of their code to be found in here
 
 import pygame
 from pygame.locals import *
