@@ -287,6 +287,7 @@ class PygameView:
                 textRect.centerx = self.window.get_rect().centerx
                 textRect.centery = 50
                 self.window.blit(text, textRect)
+            pygame.display.flip()
 
         if isinstance(event,TickEvent) and self.GAMEON == True:
             self.background.fill((0,0,0))
