@@ -20,6 +20,7 @@ LOSE = 0
 
 SKATESPEED = 9
 BACKGROUNDSPEED = 2
+CATTIMER = 60
 
 GAMELENGTH = 60000 # ms
 
@@ -311,7 +312,7 @@ class PygameView:
 
             if self.CatTimer<=0:
                 self.Catz.append( Cat(self.evManager) )
-                self.CatTimer=random.randint(1,80)
+                self.CatTimer=random.randint(1,CATTIMER)
             index = 0
             for cat in self.Catz:
 
