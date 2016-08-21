@@ -4,6 +4,8 @@ Skateboard Cat Killer
 Game Play:
 Ollie over approaching herds of cats. If you kill too many cats, you go to HELL!
 
+![gameplay](screenshot.png)
+
 Music by Delroy Edwards from Slowed Down Funk Volume 1 - http://www.sloweddownfunk.net/
 
 Installation:
